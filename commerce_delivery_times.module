@@ -1,0 +1,485 @@
+<?php
+
+/**
+ * @file
+ * Commerce delivery times  functionality.
+ *
+ */
+
+
+/**
+ * Implements hook_commerce_checkout_pane_info().
+ */
+function commerce_delivery_times_commerce_checkout_pane_info() {
+  $checkout_panes = array();
+  $checkout_panes['deliver_time'] = array(
+    'title' => t('Delivery times'),
+    'base' => 'commerce_delivery_times_pane',
+    'page' => 'checkout',
+    'fieldset' => FALSE,
+  );
+  return $checkout_panes;
+}
+
+
+/**
+ * Checkout pane callback: returns the Delivery times pane's settings form.
+ */
+function commerce_delivery_times_pane_settings_form($checkout_pane) {
+  $form = array();
+
+  $form['cdt_timeslots_startd'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Start date'),
+    '#description' => t('the number of days from the current date we can start delivery. 1= next day.'),
+    '#default_value' => variable_get('cdt_timeslots_startd', 1),
+    '#required' => TRUE,
+  );
+
+  $form['cdt_timeslots_endd'] = array(
+    '#type' => 'textfield',
+    '#title' => t('End date'),
+    '#description' => t('The number of days from the start date we can start delivery. 14= 2 weeks.'),
+    '#default_value' => variable_get('cdt_timeslots_endd', '14'),
+    '#required' => TRUE,
+  );
+
+  $form['cdt_timeslots_startt'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Start time'),
+    '#description' => t('The time of the first available delivery.'),
+    '#default_value' => variable_get('cdt_timeslots_startt', '8'),
+    '#required' => TRUE,
+  );
+  $form['cdt_timeslots_size'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Time slot size in min'),
+    '#description' => t('The size of each slot in min so 120 is 2hrs.'),
+    '#default_value' => variable_get('cdt_timeslots_size', '120'),
+    '#required' => TRUE,
+  );
+  $form['cdt_timeslots_number_per_day'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Number of delivery slots'),
+    '#description' => t('The number of delivery slots available each day.'),
+    '#default_value' => variable_get('cdt_timeslots_number_per_day', '7'),
+    '#required' => TRUE,
+  );
+  $form['cdt_timeslots_number_per_slot'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Number of deliveries per slot'),
+    '#description' => t('The maximum number of deliveries that can be made per slot.'),
+    '#default_value' => variable_get('cdt_timeslots_number_per_slot', '10'),
+    '#required' => TRUE,
+  );
+  $form['cdt_timeslots_book_by_time'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Book by time'),
+    '#description' => t('The latest a shoper can book a delivery for the following day.'),
+    '#default_value' => variable_get('cdt_timeslots_book_by_time', '20'),
+    '#required' => TRUE,
+  );
+  $form['cdt_timeslots_dateformat'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Date format'),
+    '#description' => t('Date format a !phpfunc format or enter the {days} tag.', array('!phpfunc' => l(t('PHP date()'), 'http://www.php.net/manual/en/function.date.php'))),
+    '#default_value' => variable_get('cdt_timeslots_dateformat', 'l Y-m-d'),
+    '#required' => TRUE,
+  );
+  $form['cdt_timeslots_timeformat'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Time format'),
+    '#description' => t('Time format using the !phpfunc format.', array('!phpfunc' => l(t('PHP date()'), 'http://www.php.net/manual/en/function.date.php'))),
+    '#default_value' => variable_get('cdt_timeslots_timeformat', 'H'),
+    '#required' => TRUE,
+  );
+  $form['cdt_timeslots_layout'] = array(
+    '#type' => 'radios',
+    '#title' => t('The layout of the pane'),
+    '#description' => t('chose the layout of the delivery times panes.'),
+    '#options' => array(
+      'full' => t('Full layout.'),
+      'collapsed' => t('Collapsed'),
+    ),
+    '#default_value' => variable_get('cdt_timeslots_layout', 'collapsed'),
+  );
+
+//  $form['xxxx'] = array(
+//    '#type' => 'textfield',
+//    '#title' => t('xxxx'),
+//    '#description' => t('xxx.'),
+//    '#default_value' => variable_get('xxx', 14),
+//    '#required' => TRUE,
+//  );
+
+
+//
+//  $timeformat =  variable_get('cdt_timeslots_timeformat', 'H');
+
+  return $form;
+}
+
+
+/**
+ * Delivery times pane: form callback.
+ */
+function commerce_delivery_times_pane_checkout_form($form, &$form_state, $checkout_pane, $order) {
+  $pane_form = array();
+
+  $layout = variable_get('cdt_timeslots_layout', 'collapsed');
+
+//  // Get the order number.
+//  $or = entity_metadata_wrapper('commerce_order', $order);
+//  $order_no = $or->order_id->value();
+
+
+  $message = t('Please select a delivery time:');
+  $pane_form['message'] = array(
+    '#markup' => '<div class="checkout-delivery-times-message">' . $message . '</div>',
+  );
+
+  $timeslots_a = commerce_delivery_times_get_timeslots();
+  $selected = commerce_delivery_times_get_order_timeslot($order->order_id);
+
+  if ($layout == 'full'){
+
+    // Cycle the dates.
+    foreach ($timeslots_a as $key1 => $date) {
+      // Add a day fieldset for each of the dates.
+      $pane_form[$key1] = array(
+        '#type' => 'fieldset',
+        '#title' => $date['display'],
+      );
+      // Cycle the timeslots for each of the dates.
+      foreach ($date['slots'] as $key2 => $timeslot) {
+        // Add a checkbox for each timeslot.
+        $pane_form[$key1][$timeslot['timestamp']] = array(
+          '#type' => 'checkbox',
+          '#title' => $timeslot['display'],
+          '#attributes' => array('class' => array('timeslot-select')),
+        );
+        // If no deliveries available.
+        if ($timeslot['deliveries'] < 1) {
+          // Disable the slot.
+          $pane_form[$key1][$timeslot['timestamp']]['#disabled'] = TRUE;
+        }
+        else {
+          // Set the timeslot the the previously selected one.
+          if ($selected && ($selected == $timeslot['timestamp'])) {
+            $pane_form[$key1][$timeslot['timestamp']]['#default_value'] = TRUE;
+          }
+
+        }
+
+
+      }
+    }
+  }
+  else if ($layout == 'collapsed'){
+    // Add CSS & JS.
+    $pane_form['#attached']['css'][] = drupal_get_path('module', 'commerce_delivery_times') . '/commerce_delivery_times_collapsed.css';
+    $pane_form['#attached']['js'][] = drupal_get_path('module', 'commerce_delivery_times') . '/commerce_delivery_times_collapsed.js';
+
+    $times_col = FALSE;
+    // Cycle the dates.
+    foreach ($timeslots_a as $key1 => $date) {
+      // Have we created the timeslots coloumn?
+      if (!$times_col) {
+        // Buils a coloumn of the times.
+        $pane_form['timeslots'] = array(
+          '#type' => 'fieldset',
+          '#title' => t('Time') . '<br />',
+        );
+        foreach ($date['slots'] as $key2 => $timeslot) {
+          // Add a checkbox for each timeslot.
+          $pane_form['timeslots']['times_'.$timeslot['timestamp']] = array(
+            '#markup' => $timeslot['display'],
+            '#prefix' => '<div class="timeslot">',
+            '#suffix' => '</div>',
+          );
+        }
+        // Set to true so we dont build it again.
+        $times_col = TRUE;
+      }
+      // Add a day fieldset for each of the dates.
+      $pane_form[$key1] = array(
+        '#type' => 'fieldset',
+        '#title' => $date['display'],
+      );
+      // Cycle the timeslots for each of the dates.
+      foreach ($date['slots'] as $key2 => $timeslot) {
+        // Add a checkbox for each timeslot.
+        $pane_form[$key1][$timeslot['timestamp']] = array(
+          '#type' => 'checkbox',
+          '#attributes' => array('class' => array('timeslot-select')),
+        );
+
+        // Check if we have available deliveries.
+        if ($timeslot['deliveries'] > 0) {
+          $title = t('Select');
+        }
+        else {
+          $title = t('Occupied');
+          // Disable the slot.
+          $pane_form[$key1][$timeslot['timestamp']]['#disabled'] = TRUE;
+        }
+        // Alter the display of the timeslot using
+        // hook_commerce_delivery_timeslot_alter().
+        drupal_alter('commerce_delivery_timeslot', $key1, $timeslot, $title);
+        $pane_form[$key1][$timeslot['timestamp']]['#title'] = $title;
+
+        // Check if we have available deliveries.
+        if ($timeslot['deliveries'] > 0) {
+          $pane_form[$key1][$timeslot['timestamp']]['#title'] = t('Select');
+          // Set the timeslot the the previously selected one.
+          if ($selected && ($selected == $timeslot['timestamp'])) {
+            $pane_form[$key1][$timeslot['timestamp']]['#default_value'] = TRUE;
+          }
+        }
+        else {
+          // Disable the slot.
+          $pane_form[$key1][$timeslot['timestamp']]['#disabled'] = TRUE;
+        }
+      }
+    }
+
+  }
+
+  // Enables the disabling of the pane through JS by setting value to FALSE.
+  $pane_form['slots_enabled'] = array(
+    '#type' => 'hidden',
+    '#default_value' => TRUE,
+    '#prefix' => '<div id="delivery-times-disabled-slots-field">',
+    '#suffix' => '</div>',
+  );
+
+
+  return $pane_form;
+}
+
+
+function commerce_delivery_times_get_timeslots() {
+
+  // Get variables.
+  $startd =  variable_get('cdt_timeslots_startd', 1);  // 1= next day
+  $endd =  variable_get('cdt_timeslots_endd', 14);     // 14= 2weeks
+  $startt =  variable_get('cdt_timeslots_startt', 8);  // 8am
+  $size =  variable_get('cdt_timeslots_size', 120);    // 2hr slots
+  $slots =  variable_get('cdt_timeslots_number_per_day', 7);     // 7 slots per day
+  $deliveries =  variable_get('cdt_timeslots_number_per_slot', 10);  // 10 deliveries per slot
+  $book_by =  variable_get('cdt_timeslots_book_by_time', 20);  // default 8pm
+  $dateformat =  variable_get('cdt_timeslots_dateformat', 'l Y-m-d');
+  $timeformat =  variable_get('cdt_timeslots_timeformat', 'H');
+
+//  $dateformat =  'l Y-m-d';
+//  $timeformat =   'h';
+
+  // If after the book by time then dd a day.
+  if (date('H') > $book_by) {
+   $startd++;
+   $endd++;
+  }
+
+  $timeslots = array();
+  // Cycle the days we can deliver
+  for ($d = $startd; $d <= $endd; $d++) {
+    $Date = new DateTime('NOW');
+    // Add the day counter to todays date.
+    $Date->add(new DateInterval('P' . $d . 'D'));
+    $date = $Date->format('Y-m-d');
+    // @todo - check if day is valid for delivery.
+    if ($dateformat == '{days}') {
+      $Today = new DateTime();
+      $interval = $Today->diff($Date);
+      //$days = $interval->format('%R%a');
+      $days = $interval->format('%a');
+      if ($days == 1) {
+        $days = t('Tomorrow');
+      }
+      else if ($days == 2) {
+        $days = t('Day after');
+      }
+      else {
+        $days = t('in @days days', array('@days' => $days));
+      }
+      // @todo - Add the date, ideally should be configurable.
+      $days .= '<br /><span>' . t($Date->format('D')) . ' ' . $Date->format('j/m')  . '</span>';
+      $timeslots[$date]['display'] = $days;
+    }
+    else {
+      $timeslots[$date]['display'] = $Date->format($dateformat);
+    }
+    $timeslots[$date]['slots']  = array();
+    // Cycle the number of slots.
+    for ($i = 0; $i < $slots; $i++) {
+      $Time = new DateTime($date);
+      $min = ($startt * 60) + ($i *  $size);
+      $Time->add(new DateInterval('PT' . $min . 'M'));
+      $time = $Time->format('H:i');
+      // Find out how many deliveries are allready booked for this time.
+      $taken = commerce_delivery_times_count_timeslots($Time->getTimestamp());
+      // Create the time slot as an array element and set its max number of
+      // deliveries.
+      $timeslots[$date]['slots'][$time]['deliveries'] = $deliveries - $taken;
+      $timeslots[$date]['slots'][$time]['timestamp'] = $Time->getTimestamp();
+      // get the start and end time of the slot for the display.
+      $stime = $Time->format($timeformat);
+      $Time->add(new DateInterval('PT' . $size . 'M'));
+      $etime = $Time->format($timeformat);
+      $timeslots[$date]['slots'][$time]['display'] = $stime . '-' . $etime ;
+    }
+  }
+  // Allows other modules to call hook_commerce_delivery_times_alter().
+  drupal_alter('commerce_delivery_times', $timeslots);
+
+  return $timeslots;
+}
+
+
+/**
+ * Delivery times pane: validate callback.
+ */
+function commerce_delivery_times_pane_checkout_form_validate($form, &$form_state, $checkout_pane, $order) {
+  // Get the selected options.
+  $deliver_time = $form_state['values']['deliver_time'];
+  // If the slots where disabled by JS then no need to validate
+  if (!$deliver_time['slots_enabled']) {
+    return TRUE;
+  }
+  $selected = array();
+  foreach ($deliver_time as $key => $value) {
+    if ($key != 'slots_enabled') {
+      $selected = $selected + array_filter($value);
+    }
+  }
+  // Validation.
+  if (count($selected) == 0) {
+    drupal_set_message(t('Select a delivery time'));
+    return FALSE;
+  }
+  else if (count($selected) > 1) {
+    drupal_set_message(t('Select only one delivery time'));
+    return FALSE;
+  }
+  else {
+    return TRUE;
+  }
+}
+
+
+/**
+ * Delivery times pane: submit callback.
+ */
+function commerce_delivery_times_pane_checkout_form_submit($form, &$form_state, $checkout_pane, $order) {
+  // If the slots where disabled by JS then no need to book so we will clear any
+  // existing booked slots.
+  if (!$form_state['values']['deliver_time']['slots_enabled']) {
+    commerce_delivery_times_clear_time_slot($order->order_id);
+  }
+  else {
+    // Get the selected options.
+    $deliver_time = $form_state['values']['deliver_time'];
+    $selected = array();
+    foreach ($deliver_time as $key => $value) {
+      if ($key != 'slots_enabled') {
+        $selected = $selected + array_filter($value);
+      }
+    }
+    $selected_timeslot = key($selected);
+    // Book the timeslot.
+    commerce_delivery_times_book_time_slot($order->order_id, $selected_timeslot);
+  }
+}
+
+
+function commerce_delivery_times_get_timeslot_display($timeslot) {
+  $size =  variable_get('cdt_timeslots_size', 120);    // 2hr slots
+  // Get the start time of the delivery slot.
+  $Time = new DateTime();
+  $Time->setTimestamp($timeslot);
+  $time = $Time->format('D, d M Y H:i');
+  // Get the end time of the slot.
+  $Time->add(new DateInterval('PT' . $size . 'M'));
+  $end_time = $Time->format('H:i');
+  // build the string
+  $time = $time . ' - ' . $end_time;
+
+  return $time;
+}
+
+/**
+ * Book the $timeslot for the $order_id.
+ */
+function commerce_delivery_times_book_time_slot($order_id, $timeslot) {
+  if (commerce_delivery_times_is_booked($order_id)) {
+    // Update the order record.
+      db_update('commerce_delivery_times')
+        ->condition('order_id', $order_id, '=')
+        ->fields(array(
+            'booked_time' => $timeslot,
+            'created' => time(),
+        ))
+        ->execute();
+  }
+  else {
+    // Create a new record.
+    db_insert('commerce_delivery_times')
+        ->fields(array(
+            'order_id' => $order_id,
+            'booked_time' => $timeslot,
+            'state' => 1,
+            'created' => time(),
+          ))
+          ->execute();
+  }
+}
+
+/**
+ * clear the timeslot for the $order_id.
+ */
+function commerce_delivery_times_clear_time_slot($order_id) {
+  // Check if order has a booking.
+  if (commerce_delivery_times_is_booked($order_id)) {
+    // Delete an existing record.
+    db_delete('commerce_delivery_times')
+      ->condition('order_id', $order_id, '=')
+      ->execute();
+  }
+}
+
+/**
+ * Returns TRUE if the order has a delivery time booked.
+ */
+function commerce_delivery_times_is_booked($order_id) {
+  $result = db_select('commerce_delivery_times', 'cdt')
+    ->fields('cdt', array('order_id'))
+    ->condition('order_id', $order_id, '=')
+    ->execute();
+  return ($result->rowCount() == 1);
+}
+
+/**
+ * Returns the time & date as a unix stamp for $order_id or FALSE if not found.
+ */
+function commerce_delivery_times_get_order_timeslot($order_id) {
+  $result = db_select('commerce_delivery_times', 'cdt')
+    ->fields('cdt', array('booked_time'))
+    ->condition('order_id', $order_id, '=')
+    ->execute();
+  if ($result->rowCount() == 0) {
+    return FALSE;
+  }
+  else {
+    return $result->fetchField();
+  }
+}
+
+function commerce_delivery_times_count_timeslots($timeslot) {
+
+  $result = db_select('commerce_delivery_times', 'cdt')
+    ->fields('cdt', array('order_id'))
+    ->condition('booked_time', $timeslot, '=')
+    ->execute();
+  return $result->rowCount();
+}
+

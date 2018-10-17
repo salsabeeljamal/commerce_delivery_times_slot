@@ -1,0 +1,74 @@
+<?php
+
+/**
+ * @file
+ * Provides install & schema data for the commerce delivery times module.
+ */
+/**
+ * Implements hook_uninstall().
+ */
+function commerce_delivery_times_uninstall() {
+  variable_del('cdt_timeslots_startd');
+  variable_del('cdt_timeslots_endd');
+  variable_del('cdt_timeslots_startt');
+  variable_del('cdt_timeslots_size');
+  variable_del('cdt_timeslots_number_per_day');
+  variable_del('cdt_timeslots_number_per_slot');
+  variable_del('cdt_timeslots_dateformat');
+  variable_del('cdt_timeslots_timeformat');
+  variable_del('cdt_timeslots_layout');
+  variable_del('cdt_timeslots_book_by_time');
+}
+
+
+/**
+ * Implements hook_schema().
+ */
+function commerce_delivery_times_schema() {
+// The State currently not used so will always be 1 = active.
+
+  $schema['commerce_delivery_times'] = array(
+    'description' => 'A table for holding commerce orders delivery times.',
+    'fields' => array(
+      'order_id' => array(
+        'description' => 'The order id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'booked_time' => array(
+        'description' => 'The delivery date time as a Unix timestamp.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'created' => array(
+        'description' => 'Unix timestamp when the record was created.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'state' => array(
+        'description' => 'The status of the booking.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 1,
+        'size' => 'tiny',
+      ),
+
+    ),
+    'indexes' => array(
+      'timeslot' => array('booked_time'),
+    ),
+    'foreign keys' => array(
+      'node_revision' => array(
+        'table' => 'commerce_order',
+        'columns' => array('order_id' => 'order_id'),
+      ),
+    ),
+    'primary key' => array('order_id'),
+  );
+  return $schema;
+}
+

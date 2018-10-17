@@ -1,0 +1,6 @@
+name = Commerce delivery times
+description = Provide user selectable delivery times at checkout
+package = My Delivery Times
+core = 7.x
+dependencies[] = date
+dependencies[] = commerce_order

@@ -1,0 +1,23 @@
+/*
+	Delivery time slot table
+*/
+
+	/* Delivery time */
+	.page-checkout #edit-deliver-time .checkout-delivery-times-message {
+		margin-top: 12px;
+	}
+
+	/* Columns */
+	.page-checkout #edit-deliver-time fieldset.form-wrapper {
+		width: 12.5%;
+		float: left;
+		margin-top: 12px;
+	}
+
+	/* Rows */
+	.page-checkout #edit-deliver-time fieldset.form-wrapper div.fieldset-wrapper div:first-child {
+		margin-top: 10px;
+	}
+	.page-checkout #edit-deliver-time fieldset.form-wrapper div.fieldset-wrapper div {
+		margin: 20px 0;
+	}
